@@ -356,8 +356,13 @@ body.exporting .text-content{display:block!important;width:auto!important;}
   padding:26px 30px;
 }
 .cards-grid.layout-list .card-badge{grid-area:badge;align-self:start;margin:0;}
-.cards-grid.layout-list .card-icon{grid-area:icon;align-self:start;margin:0;min-height:0;font-size:var(--card-icon-size, 200px);}
-.cards-grid.layout-list .card-icon img,.cards-grid.layout-list .card-icon svg{width:var(--card-icon-size, 200px);height:var(--card-icon-size, 200px);}
+/* The list layout's icon column is only 70-110px wide (minmax above), so the grid layout's 200px
+   default massively overflows it — use a smaller 93px default here instead. Both layouts still
+   share the same --card-icon-size custom property (set once at the grid level by the stepper), so
+   this only changes the FALLBACK used when the user hasn't touched the stepper yet; each layout's
+   own CSS rule picks its own fallback for that same unset property. */
+.cards-grid.layout-list .card-icon{grid-area:icon;align-self:start;margin:0;min-height:0;font-size:var(--card-icon-size, 93px);}
+.cards-grid.layout-list .card-icon img,.cards-grid.layout-list .card-icon svg{width:var(--card-icon-size, 93px);height:var(--card-icon-size, 93px);}
 .cards-grid.layout-list .card-title{grid-area:title;text-align:left;}
 .cards-grid.layout-list .card-text{grid-area:text;text-align:left;}
 /* Badges off: drop the empty badge column instead of leaving an awkward gap */
@@ -1675,7 +1680,10 @@ function renderProps(block){
     const isList = grid.classList.contains('layout-list');
     const numbered = grid.classList.contains('show-badges');
     const badgeSize = grid.style.getPropertyValue('--card-badge-size') ? parseInt(grid.style.getPropertyValue('--card-badge-size')) : 58;
-    const iconSize = grid.style.getPropertyValue('--card-icon-size') ? parseInt(grid.style.getPropertyValue('--card-icon-size')) : 200;
+    // Displayed default must match whichever layout's own CSS fallback is actually in effect
+    // (200px grid / 93px list) so the stepper never shows a number that doesn't match what's
+    // rendered when the user hasn't touched it yet.
+    const iconSize = grid.style.getPropertyValue('--card-icon-size') ? parseInt(grid.style.getPropertyValue('--card-icon-size')) : (isList ? 93 : 200);
     const target = cardsTextTarget(block);
     const isTitle = target.classList.contains('card-title');
     const targetFont = cleanFontName(target.style.fontFamily) || cleanFontName(grid.style.getPropertyValue('--cards-font-family')) || 'Roboto';
@@ -3378,7 +3386,17 @@ new Sortable(paletteEl, {
 new Sortable(artboard, {
   group:{name:'shared', pull:false, put:true},
   animation:150,
-  handle:'.blk-handle',
+  // Previously restricted to '.blk-handle' (the small cross-arrow icon in the toolbar) — dropped
+  // that restriction so any non-interactive part of a block (its padding, a card's badge/icon
+  // area, empty space around text, etc.) can be grabbed directly to reorder it; the handle icon
+  // still works too, it's just no longer required. filter excludes every interaction that ALREADY
+  // depends on its own click-and-drag inside a block — placing a cursor / selecting text in
+  // contenteditable content, the table cell range-select drag, column/row resize handles, and any
+  // button/input — so none of those break. preventOnFilter:false is essential: the default (true)
+  // calls preventDefault() on the mousedown for filtered elements, which would swallow the exact
+  // native behavior (cursor placement, text selection, resize-drag) those interactions rely on.
+  filter:'[contenteditable="true"], button, input, select, textarea, td, th, .col-resize-handle, .row-resize-handle, .icon-popover',
+  preventOnFilter:false,
   onAdd:function(evt){
     const item = evt.item;
     const type = item.dataset.type;
